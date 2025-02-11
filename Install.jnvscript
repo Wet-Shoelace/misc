@@ -1,0 +1,152 @@
+#!/bin/bash
+
+# Function to print messages
+log() {
+    echo "[INFO]: $1"
+}
+
+# Ensure the script is run as root
+if [ "$EUID" -ne 0 ]; then
+    echo "Please run this script as root."
+    exit 1
+fi
+
+# Try to detect OS
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    OS=$ID
+    OS_LIKE=$ID_LIKE
+else
+    echo "Unsupported operating system."
+    exit 1
+fi
+
+log "Detected OS: $OS"
+
+contains() {
+    [[ " $2 " =~ " $1 " ]]
+}
+
+# Supported OS's
+DEB_BASED="ubuntu debian zorin pop neon elementary"
+RPM_BASED="fedora rhel rocky alma"
+ARCH_BASED="arch manjaro endeavour"
+SUSE_BASED="opensuse suse"
+
+if contains "$OS" "centos" || contains "$OS_LIKE" "centos"; then
+    log "Installing GCC 13, G++ 13 and GDB on CentOS..."
+    yum groupinstall -y "Development Tools"
+    yum install -y centos-release-scl
+    yum install -y devtoolset-13-gcc devtoolset-13-gcc-c++ gdb
+        
+    log "Enabling GCC 13 environment..."
+    source /opt/rh/devtoolset-13/enable
+    echo "source /opt/rh/devtoolset-13/enable" >> ~/.bashrc
+        
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /opt/rh/devtoolset-13/root/usr/bin/gcc /usr/bin/gcc
+    ln -sf /opt/rh/devtoolset-13/root/usr/bin/g++ /usr/bin/g++
+    
+elif contains "$OS" "void" || contains "$OS_LIKE" "void"; then
+    log "Installing GCC 13, G++ 13 and GDB on Void Linux..."
+    xbps-install -S gcc gdb
+
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /usr/bin/gcc /usr/bin/gcc-13
+    ln -sf /usr/bin/g++ /usr/bin/g++-13
+
+elif contains "$OS" "alpine" || contains "$OS_LIKE" "alpine"; then
+    log "Installing GCC 13, G++ 13 and GDB on Alpine Linux..."
+    apk add --no-cache gcc g++ gdb
+
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /usr/bin/gcc /usr/bin/gcc-13
+    ln -sf /usr/bin/g++ /usr/bin/g++-13
+
+elif contains "$OS" "$DEB_BASED" || contains "$OS_LIKE" "$DEB_BASED"; then
+    log "Updating package lists..."
+    apt update
+
+    log "Adding GCC 13 repository..."
+    apt install -y software-properties-common
+    add-apt-repository -y ppa:ubuntu-toolchain-r/test
+
+    log "Installing GCC 13, G++ 13 and GDB..."
+    apt update
+    apt install -y gcc-13 g++-13 gdb
+
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /usr/bin/gcc-13 /usr/bin/gcc
+    ln -sf /usr/bin/g++-13 /usr/bin/g++
+
+elif contains "$OS" "$RPM_BASED" || contains "$OS_LIKE" "$RPM_BASED"; then
+    log "Installing GCC 13, G++ 13 and GDB on Fedora/RHEL-based distros..."
+    dnf install -y gcc gcc-c++ gdb
+        
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /usr/bin/gcc /usr/bin/gcc-13
+    ln -sf /usr/bin/g++ /usr/bin/g++-13
+
+elif contains "$OS" "$ARCH_BASED" || contains "$OS_LIKE" "$ARCH_BASED"; then
+    log "Installing GCC 13, G++ 13 and GDB on Arch-based distros..."
+    pacman -Syu --noconfirm gcc gdb
+
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /usr/bin/gcc /usr/bin/gcc-13
+    ln -sf /usr/bin/g++ /usr/bin/g++-13
+
+elif contains "$OS" "$SUSE_BASED" || contains "$OS_LIKE" "$SUSE_BASED"; then
+    log "Installing GCC 13, G++ 13 and GDB on openSUSE..."
+    zypper refresh
+    zypper install -y gcc13 gcc13-c++ gdb
+
+    log "Creating symbolic links for gcc and g++..."
+    ln -sf /usr/bin/gcc13 /usr/bin/gcc
+    ln -sf /usr/bin/g++13 /usr/bin/g++
+
+else
+    log "Your operating system is not supported by this script."
+    exit 1
+fi
+
+# Verify installation
+log "Verifying GCC installation..."
+if gcc-13 --version &>/dev/null; then
+    log "GCC 13 successfully installed!"
+else
+    log "Failed to install GCC 13."
+    exit 1
+fi
+
+if g++-13 --version &>/dev/null; then
+    log "G++ 13 successfully installed!"
+else
+    log "Failed to install G++ 13."
+    exit 1
+fi
+
+# Verify compilers
+log "Verifying GCC/G++ installation..."
+if gcc --version &>/dev/null; then
+    log "GCC is available."
+else
+    log "GCC Missing."
+    exit 1
+fi
+
+if g++ --version &>/dev/null; then
+   log "G++ is available."
+else
+    log "G++ Missing."
+    exit 1
+fi
+
+log "Verifying GDB installation..."
+if gdb --version &>/dev/null; then
+    log "GDB successfully installed!"
+else
+    log "Failed to install GDB."
+    exit 1
+fi
+
+log "Installation completed!"
